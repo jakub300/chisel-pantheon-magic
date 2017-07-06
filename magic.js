@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 
 const Git = require('nodegit');
-const { URL } = require('url');
 const helpers = require('./helpers');
 
 const PANTHEON_KEY_PRIVATE = process.env.PANTHEON_KEY_PRIVATE;
-const PANTHEON_KEY_PUBLIC = helpers.getPublicKey(PANTHEON_KEY_PRIVATE);
-
 const PANTHEON_REMOTE_NAME = 'pantheon';
 const PANTHEON_REMOTE_BRANCH = 'master';
 const PANTHEON_REMOTE = `${PANTHEON_REMOTE_NAME}/${PANTHEON_REMOTE_BRANCH}`
+
+const GITLAB_KEY_PRIVATE = process.env.GITLAB_KEY_PRIVATE;
+const GITLAB_REMOTE_NAME = 'gitlab';
+const GITLAB_REMOTE_BRANCH = 'master';
+const GITLAB_REMOTE = `${GITLAB_REMOTE_NAME}/${GITLAB_REMOTE_BRANCH}`
+
 const PANTHEON_LOCAL = `pantheon-master-`+Date.now();
 const LOCAL_BRANCH = 'master';
 const SIGNATURE_NAME = 'Chisel Bot';
@@ -23,6 +26,7 @@ async function main() {
   await repo.checkoutBranch(LOCAL_BRANCH, {
     checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
   });
+  await fetchAll(repo);
   await repo.createBranch(PANTHEON_LOCAL, await repository.getBranchCommit(PANTHEON_REMOTE), true);
 
   try {
@@ -75,17 +79,35 @@ async function removeBuildsFromPantheon(repo, commit, stopId) {
 
 async function pushToPantheon(repo) {
   const remote = await repo.getRemote(PANTHEON_REMOTE_NAME);
-  const credentials = Git.Cred.sshKeyMemoryNew(
-    new URL(remote.url()).username,
-    PANTHEON_KEY_PUBLIC,
-    PANTHEON_KEY_PRIVATE,
-    '',
-  );
   return remote.push([
     `+refs/heads/${PANTHEON_LOCAL}:refs/heads/${PANTHEON_REMOTE_BRANCH}` // Plus at the beginning means force
   ], {
     callbacks: {
-      credentials: () => credentials,
+      credentials: (url, user) => helpers.getCredentials(url, user, PANTHEON_KEY_PRIVATE),
+    }
+  });
+}
+
+async function pushToGitLab(repo) {
+  const remote = await repo.getRemote(GITLAB_REMOTE_NAME);
+  return remote.push([
+    `refs/heads/${LOCAL_BRANCH}:refs/heads/${GITLAB_REMOTE_BRANCH}`,
+  ], {
+    callbacks: {
+      credentials: (url, user) => helpers.getCredentials(url, user, GITLAB_KEY_PRIVATE),
+    }
+  });
+}
+
+async function fetchAll(repo) {
+  await repo.fetch(GITLAB_REMOTE_NAME, {
+    callbacks: {
+      credentials: (url, user) => helpers.getCredentials(url, user, GITLAB_KEY_PRIVATE),
+    }
+  });
+  await repo.fetch(PANTHEON_REMOTE_NAME, {
+    callbacks: {
+      credentials: (url, user) => helpers.getCredentials(url, user, PANTHEON_KEY_PRIVATE),
     }
   });
 }
@@ -199,7 +221,7 @@ async function updateLocalBasedOnRemote() {
         'HEAD',
         commit.author(),
         Git.Signature.now(SIGNATURE_NAME, SIGNATURE_EMAIL),
-        commit.message(),
+        commit.message()+'\n[ci skip]',
         treeOid,
         [head],
       );
@@ -216,7 +238,7 @@ async function updateLocalBasedOnRemote() {
         'HEAD',
         commit.author(),
         Git.Signature.now(SIGNATURE_NAME, SIGNATURE_EMAIL),
-        commit.message(),
+        commit.message()+'\n[ci skip]',
         treeOid,
         [head, parents[1]],
       );
@@ -227,6 +249,7 @@ async function updateLocalBasedOnRemote() {
   }
   await repo.createBranch(PANTHEON_LOCAL, await repo.getHeadCommit(), true);
   await pushToPantheon(repo);
+  await pushToGitLab(repo);
 }
 
 main().

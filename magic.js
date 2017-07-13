@@ -89,26 +89,26 @@ async function removeBuildsFromPantheon(repo, commit, stopId) {
   }
 }
 
-async function pushToPantheon(repo) {
-  const remote = await repo.getRemote(PANTHEON_REMOTE_NAME);
-  return remote.push([
-    `+refs/heads/${PANTHEON_LOCAL}:refs/heads/${PANTHEON_REMOTE_BRANCH}` // Plus at the beginning means force
+async function push(remoteName, remoteBranch, localBranch, privateKey, force) {
+  process.stdout.write(`Pushing to ${remoteName}/${remoteBranch}... `);
+  const remote = await repo.getRemote(remoteName);
+  const res = await remote.push([
+    `${force ? '+' : ''}refs/heads/${localBranch}:refs/heads/${remoteBranch}`,
   ], {
     callbacks: {
-      credentials: (url, user) => helpers.getCredentials(url, user, PANTHEON_KEY_PRIVATE),
+      credentials: (url, user) => helpers.getCredentials(url, user, privateKey),
     }
   });
+  console.log('done');
+  return res;
+}
+
+async function pushToPantheon(repo) {
+  return push(PANTHEON_REMOTE_NAME, PANTHEON_REMOTE_BRANCH, PANTHEON_LOCAL, PANTHEON_KEY_PRIVATE, true);
 }
 
 async function pushToBase(repo) {
-  const remote = await repo.getRemote(BASE_REMOTE_NAME);
-  return remote.push([
-    `refs/heads/${LOCAL_BRANCH}:refs/heads/${BASE_REMOTE_BRANCH}`,
-  ], {
-    callbacks: {
-      credentials: (url, user) => helpers.getCredentials(url, user, BASE_KEY_PRIVATE),
-    }
-  });
+  return push(BASE_REMOTE_NAME, BASE_REMOTE_BRANCH, LOCAL_BRANCH, BASE_KEY_PRIVATE, false);
 }
 
 async function fetchAll(repo) {

@@ -18,6 +18,7 @@ const LOCAL_BRANCH = 'master';
 const SIGNATURE_NAME = 'Chisel Bot';
 const SIGNATURE_EMAIL = 'jakub.bogucki+chisel-bot@xfive.co';
 const MESSAGE_BUILD_PREFIX = '[chisel-build]';
+const MESSAGE_FORCE_INCLUDES = '[chisel-force]';
 const IS_SPECIFIC_COMMAND = Boolean(process.argv[2]);
 
 let repository = null;
@@ -131,6 +132,14 @@ async function updateRemoteBasedOnLocal() {
 
   console.log(`Our branch (${LOCAL_BRANCH}) is currenrly at commit: ${headCommit.id()}`);
   console.log(`Pantheon branch (${PANTHEON_REMOTE}) is currently at commit: ${branchCommit.id()}`);
+
+  const headMessage = headCommit.message();
+  if(headMessage.includes(MESSAGE_FORCE_INCLUDES)) {
+    console.log(`Head commit has ${MESSAGE_FORCE_INCLUDES} in message, reseting Pantheon`);
+    await repo.createBranch(PANTHEON_LOCAL, headCommit, true);
+    branchCommit = await repo.getBranchCommit(PANTHEON_LOCAL);
+    console.log(`Our copy of Pantheon's branch (${PANTHEON_REMOTE}) is currently at commit: ${branchCommit.id()}`);
+  }
 
   // Git.Merge.base throws when no base found
   const base = await Git.Merge.base(repo, headCommit.id(), branchCommit.id());

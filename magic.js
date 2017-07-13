@@ -273,4 +273,7 @@ async function updateLocalBasedOnRemote() {
 }
 
 main().
-  catch(e => console.log(e));
+  catch(e => {
+    console.log(e);
+    process.exit(1);
+  });

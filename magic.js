@@ -8,10 +8,10 @@ const PANTHEON_REMOTE_NAME = 'pantheon';
 const PANTHEON_REMOTE_BRANCH = 'master';
 const PANTHEON_REMOTE = `${PANTHEON_REMOTE_NAME}/${PANTHEON_REMOTE_BRANCH}`
 
-const GITLAB_KEY_PRIVATE = process.env.GITLAB_KEY_PRIVATE;
-const GITLAB_REMOTE_NAME = 'gitlab';
-const GITLAB_REMOTE_BRANCH = 'master';
-const GITLAB_REMOTE = `${GITLAB_REMOTE_NAME}/${GITLAB_REMOTE_BRANCH}`
+const BASE_KEY_PRIVATE = process.env.BASE_KEY_PRIVATE;
+const BASE_REMOTE_NAME = 'base';
+const BASE_REMOTE_BRANCH = 'master';
+const BASE_REMOTE = `${BASE_REMOTE_NAME}/${BASE_REMOTE_BRANCH}`
 
 const PANTHEON_LOCAL = `pantheon-master-`+Date.now();
 const LOCAL_BRANCH = 'master';
@@ -99,21 +99,21 @@ async function pushToPantheon(repo) {
   });
 }
 
-async function pushToGitLab(repo) {
-  const remote = await repo.getRemote(GITLAB_REMOTE_NAME);
+async function pushToBase(repo) {
+  const remote = await repo.getRemote(BASE_REMOTE_NAME);
   return remote.push([
-    `refs/heads/${LOCAL_BRANCH}:refs/heads/${GITLAB_REMOTE_BRANCH}`,
+    `refs/heads/${LOCAL_BRANCH}:refs/heads/${BASE_REMOTE_BRANCH}`,
   ], {
     callbacks: {
-      credentials: (url, user) => helpers.getCredentials(url, user, GITLAB_KEY_PRIVATE),
+      credentials: (url, user) => helpers.getCredentials(url, user, BASE_KEY_PRIVATE),
     }
   });
 }
 
 async function fetchAll(repo) {
-  await repo.fetch(GITLAB_REMOTE_NAME, {
+  await repo.fetch(BASE_REMOTE_NAME, {
     callbacks: {
-      credentials: (url, user) => helpers.getCredentials(url, user, GITLAB_KEY_PRIVATE),
+      credentials: (url, user) => helpers.getCredentials(url, user, BASE_KEY_PRIVATE),
     }
   });
   await repo.fetch(PANTHEON_REMOTE_NAME, {
@@ -260,7 +260,7 @@ async function updateLocalBasedOnRemote() {
   }
   await repo.createBranch(PANTHEON_LOCAL, await repo.getHeadCommit(), true);
   await pushToPantheon(repo);
-  await pushToGitLab(repo);
+  await pushToBase(repo);
 }
 
 main().

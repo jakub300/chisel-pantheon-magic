@@ -89,7 +89,7 @@ async function removeBuildsFromPantheon(repo, commit, stopId) {
   }
 }
 
-async function push(remoteName, remoteBranch, localBranch, privateKey, force) {
+async function push(repo, remoteName, remoteBranch, localBranch, privateKey, force) {
   process.stdout.write(`Pushing to ${remoteName}/${remoteBranch}... `);
   const remote = await repo.getRemote(remoteName);
   const res = await remote.push([
@@ -104,11 +104,11 @@ async function push(remoteName, remoteBranch, localBranch, privateKey, force) {
 }
 
 async function pushToPantheon(repo) {
-  return push(PANTHEON_REMOTE_NAME, PANTHEON_REMOTE_BRANCH, PANTHEON_LOCAL, PANTHEON_KEY_PRIVATE, true);
+  return push(repo, PANTHEON_REMOTE_NAME, PANTHEON_REMOTE_BRANCH, PANTHEON_LOCAL, PANTHEON_KEY_PRIVATE, true);
 }
 
 async function pushToBase(repo) {
-  return push(BASE_REMOTE_NAME, BASE_REMOTE_BRANCH, LOCAL_BRANCH, BASE_KEY_PRIVATE, false);
+  return push(repo, BASE_REMOTE_NAME, BASE_REMOTE_BRANCH, LOCAL_BRANCH, BASE_KEY_PRIVATE, false);
 }
 
 async function fetchAll(repo) {

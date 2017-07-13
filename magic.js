@@ -18,6 +18,7 @@ const LOCAL_BRANCH = 'master';
 const SIGNATURE_NAME = 'Chisel Bot';
 const SIGNATURE_EMAIL = 'jakub.bogucki+chisel-bot@xfive.co';
 const MESSAGE_BUILD_PREFIX = '[chisel-build]';
+const IS_SPECIFIC_COMMAND = Boolean(process.argv[2]);
 
 let repository = null;
 
@@ -30,9 +31,19 @@ async function main() {
   await repo.createBranch(PANTHEON_LOCAL, await repository.getBranchCommit(PANTHEON_REMOTE), true);
 
   try {
-    if(process.argv[2] && process.argv[2] == 'pushback') {
-      await updateLocalBasedOnRemote();
+    if(IS_SPECIFIC_COMMAND) {
+      const command = process.argv[2];
+      if(command == 'standard') {
+        await updateRemoteBasedOnLocal();
+      } else if(command == 'pushback') {
+        await updateLocalBasedOnRemote();
+      } else {
+        throw new Error(`Command ${command} not recognized`);
+      }
     } else {
+      if(process.env.CHISEL_PUSHBACK) {
+        await updateLocalBasedOnRemote();
+      }
       await updateRemoteBasedOnLocal();
     }
   } finally {

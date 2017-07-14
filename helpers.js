@@ -1,6 +1,7 @@
 const Git = require('nodegit');
 const forge = require('node-forge');
 const { URL } = require('url');
+const { execSync } = require('child_process');
 
 exports.sleep = function sleep(time) {
   return new Promise((resolve) => setTimeout(resolve, time));
@@ -24,4 +25,8 @@ exports.getCredentials = function(url, user, privateKey) {
     privateKey,
     '',
   )
+}
+
+exports.exec = function(cmd) {
+  return execSync(cmd, {stdio: 'inherit'})
 }

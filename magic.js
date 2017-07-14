@@ -19,7 +19,6 @@ const SIGNATURE_NAME = 'Chisel Bot';
 const SIGNATURE_EMAIL = 'jakub.bogucki+chisel-bot@xfive.co';
 const MESSAGE_BUILD_PREFIX = '[chisel-build]';
 const MESSAGE_FORCE_INCLUDES = '[chisel-force]';
-const IS_SPECIFIC_COMMAND = Boolean(process.argv[2]);
 
 let repository = null;
 
@@ -32,21 +31,7 @@ async function main() {
   await repo.createBranch(PANTHEON_LOCAL, await repository.getBranchCommit(PANTHEON_REMOTE), true);
 
   try {
-    if(IS_SPECIFIC_COMMAND) {
-      const command = process.argv[2];
-      if(command == 'standard') {
-        await updateRemoteBasedOnLocal();
-      } else if(command == 'pushback') {
-        await updateLocalBasedOnRemote();
-      } else {
-        throw new Error(`Command ${command} not recognized`);
-      }
-    } else {
-      if(process.env.CHISEL_PUSHBACK) {
-        await updateLocalBasedOnRemote();
-      }
-      await updateRemoteBasedOnLocal();
-    }
+    await magic();
   } finally {
     await repo.checkoutBranch(LOCAL_BRANCH, {
       checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
@@ -78,9 +63,6 @@ async function removeBuildsFromPantheon(repo, commit, stopId) {
     }
 
     const parents = await commit.getParents();
-    if(parents.length > 1) {
-      throw new Error('When removing build commits encountered commit with more than one parent');
-    }
     commit = parents[0];
   }
 
@@ -124,10 +106,10 @@ async function fetchAll(repo) {
   });
 }
 
-async function updateRemoteBasedOnLocal() {
+async function magic() {
   const repo = await getRepository();
 
-  const headCommit = await repo.getHeadCommit();
+  let headCommit = await repo.getHeadCommit();
   let branchCommit = await repo.getBranchCommit(PANTHEON_LOCAL);
 
   console.log(`Our branch (${LOCAL_BRANCH}) is currenrly at commit: ${headCommit.id()}`);
@@ -143,16 +125,24 @@ async function updateRemoteBasedOnLocal() {
 
   // Git.Merge.base throws when no base found
   const base = await Git.Merge.base(repo, headCommit.id(), branchCommit.id());
-
   console.log(`Our and Pantheon's branches join at commit ${base}`);
+  helpers.exec(`git log --graph --stat ${branchCommit.id()} HEAD --not ${base}^`);
 
+  console.log('Checking if all commits on Pantheon on top of join are builds');
   await removeBuildsFromPantheon(repo, branchCommit, base);
   branchCommit = await repo.getBranchCommit(PANTHEON_LOCAL);
   if(!base.equal(branchCommit.id())) {
-    throw new Error('Patheon cleaning was not successful');
+    console.log('Found commits that are not builds');
+    const commitsToAdd = await findCommitsBetween(repo, branchCommit, base);
+    commitsToAdd.reverse();
+    console.log(`Attempting to move ${commitsToAdd.length} commit${commitsToAdd.length > 1 ? 's' : ''} to us`);
+    await moveRemoteCommitsToBase(repo, commitsToAdd);
+    console.log('Moved successfuly');
+    await pushToBase(repo);
+    headCommit = await repo.getHeadCommit();
   }
 
-  // Reset pantheon to master (it is really fast forward merge :D)
+  // Reset pantheon to master
   await repo.createBranch(PANTHEON_LOCAL, headCommit, true);
   await repo.checkoutBranch(PANTHEON_LOCAL);
 
@@ -176,8 +166,7 @@ async function updateRemoteBasedOnLocal() {
   await pushToPantheon(repo);
 }
 
-async function findCommitsBetween(repo, start, end) {
-  const endId = end.id();
+async function findCommitsBetween(repo, start, endId) {
   const commits = [];
   let check = start;
   while(check) {
@@ -200,27 +189,7 @@ async function findCommitsBetween(repo, start, end) {
   return commits;
 }
 
-async function updateLocalBasedOnRemote() {
-  const repo = await getRepository();
-
-  const headCommit = await repo.getHeadCommit();
-  let branchCommit = await repo.getBranchCommit(PANTHEON_LOCAL);
-
-  console.log(`Our branch (${LOCAL_BRANCH}) is currenrly at commit: ${headCommit.id()}`);
-  console.log(`Pantheon branch (${PANTHEON_REMOTE}) is currently at commit: ${branchCommit.id()}`);
-
-  // Git.Merge.base throws when no base found
-  const base = await Git.Merge.base(repo, headCommit.id(), branchCommit.id());
-
-  console.log(`Our and Pantheon's branches join at commit ${base}`);
-
-  if(!base.equal(headCommit.id())) {
-    throw new Error('Pantheons branch must be entirely on top of ours, it is not');
-  }
-
-  const commitsToAdd = await findCommitsBetween(repo, branchCommit, headCommit);
-  commitsToAdd.reverse();
-
+async function moveRemoteCommitsToBase(repo, commitsToAdd) {
   for(const { commit, parents } of commitsToAdd) {
     if(parents.length == 1) {
       // Single commit - cherry pick
@@ -267,9 +236,6 @@ async function updateLocalBasedOnRemote() {
       throw new Error('Merge commits of more than two things are not supported');
     }
   }
-  await repo.createBranch(PANTHEON_LOCAL, await repo.getHeadCommit(), true);
-  await pushToPantheon(repo);
-  await pushToBase(repo);
 }
 
 main().

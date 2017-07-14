@@ -29,6 +29,7 @@ async function main() {
   });
   await fetchAll(repo);
   await repo.createBranch(PANTHEON_LOCAL, await repository.getBranchCommit(PANTHEON_REMOTE), true);
+  await Git.Reset.reset(repo, await repository.getBranchCommit(BASE_REMOTE), Git.Reset.TYPE.HARD);
 
   try {
     await magic();
@@ -36,7 +37,7 @@ async function main() {
     await repo.checkoutBranch(LOCAL_BRANCH, {
       checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
     });
-    await Git.Reset.reset(repo, await repo.getHeadCommit(), Git.Reset.TYPE.HARD);
+    await Git.Reset.reset(repo, await repository.getBranchCommit(BASE_REMOTE), Git.Reset.TYPE.HARD);
     await Git.Branch.delete(await repo.getBranch(PANTHEON_LOCAL));
   }
 }
@@ -94,6 +95,7 @@ async function pushToBase(repo) {
 }
 
 async function fetchAll(repo) {
+  process.stdout.write(`Fetching remotes... `);
   await repo.fetch(BASE_REMOTE_NAME, {
     callbacks: {
       credentials: (url, user) => helpers.getCredentials(url, user, BASE_KEY_PRIVATE),
@@ -104,6 +106,7 @@ async function fetchAll(repo) {
       credentials: (url, user) => helpers.getCredentials(url, user, PANTHEON_KEY_PRIVATE),
     }
   });
+  console.log('done');
 }
 
 async function magic() {
@@ -125,8 +128,9 @@ async function magic() {
 
   // Git.Merge.base throws when no base found
   const base = await Git.Merge.base(repo, headCommit.id(), branchCommit.id());
-  console.log(`Our and Pantheon's branches join at commit ${base}`);
+  console.log(`Our and Pantheon's branches join at commit ${base}\n\n`);
   helpers.exec(`git log --graph --stat ${branchCommit.id()} HEAD --not ${base}^`);
+  console.log('\n');
 
   console.log('Checking if all commits on Pantheon on top of join are builds');
   await removeBuildsFromPantheon(repo, branchCommit, base);
@@ -162,7 +166,8 @@ async function magic() {
     treeOid,
     [headCommit],
   );
-  console.log(`Builded project commited in ${newCommitId}`)
+  console.log(`Builded project commited in ${newCommitId}`);
+  helpers.exec(`git show --stat HEAD`);
   await pushToPantheon(repo);
 }
 
@@ -203,6 +208,7 @@ async function moveRemoteCommitsToBase(repo, commitsToAdd) {
       await Git.Cherrypick.cherrypick(repo, commit, {});
       const index = await repo.refreshIndex();
       if(index.hasConflicts()) {
+        helpers.printConflicts(index);
         throw new Error(`Conflicts when cherrypicking ${commit.id()}`);
       }
       const treeOid = await index.writeTreeTo(repo);
@@ -214,12 +220,14 @@ async function moveRemoteCommitsToBase(repo, commitsToAdd) {
         treeOid,
         [head],
       );
+      helpers.exec(`git show --stat HEAD`);
     } else if(parents.length == 2) {
       // Merge commit
       const head = await repo.getHeadCommit();
       console.log(`merging ${parents[1].id()} with ${head.id()}`);
       const index = await Git.Merge.commits(repo, head, parents[1]);
       if(index.hasConflicts()) {
+        helpers.printConflicts(index);
         throw new Error(`Conflicts when merging ${parents[1].id()} with ${head.id()}`);
       }
       const treeOid = await index.writeTreeTo(repo);
@@ -232,6 +240,7 @@ async function moveRemoteCommitsToBase(repo, commitsToAdd) {
         [head, parents[1]],
       );
       await Git.Reset.reset(repo, await repo.getHeadCommit(), Git.Reset.TYPE.HARD);
+      helpers.exec(`git show --stat HEAD`);
     } else {
       throw new Error('Merge commits of more than two things are not supported');
     }

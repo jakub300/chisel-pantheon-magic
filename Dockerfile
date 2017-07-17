@@ -1,12 +1,12 @@
 FROM node:8
 
-RUN cd ~/ && \
-    mkdir terminus && \
-    cd $_ && \
-    apt-get update && \
+RUN apt-get update && \
     apt-get install -y php5-cli && \
     rm -rf /var/lib/apt/lists/* && \
     php -v && \
+    cd ~/ && \
+    mkdir terminus && \
+    cd terminus && \
     php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" && \
     php composer-setup.php && \
     php -r "unlink('composer-setup.php');" && \

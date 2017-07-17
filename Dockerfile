@@ -16,9 +16,12 @@ RUN cd ~/ && \
     terminus -V
 
 
-RUN cd ~/ && \
-    mkdir chisel-pantheon-magic && \
-    cd $_ && \
-    npm install --prefix . --quiet git+https://github.com/jakub300/chisel-pantheon-magic.git && \
-    cd node_modules/chisel-pantheon-magic && \
+WORKDIR /root
+
+ADD . /root/chisel-pantheon-magic
+
+RUN cd /root/chisel-pantheon-magic && \
+    npm install && \
     ln -sr magic.js /usr/local/bin/chisel-pantheon-magic
+
+WORKDIR /

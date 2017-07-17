@@ -19,10 +19,9 @@ RUN apt-get update && \
 
 WORKDIR /root
 
-ADD . /root/chisel-pantheon-magic
+COPY . /root/chisel-pantheon-magic
 
 RUN cd /root/chisel-pantheon-magic && \
-    npm install && \
-    ln -sr magic.js /usr/local/bin/chisel-pantheon-magic
+    npm link
 
 WORKDIR /

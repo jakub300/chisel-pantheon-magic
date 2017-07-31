@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 const Git = require('nodegit');
+const path = require('path');
+const mkdirp = require('mkdirp-promise');
+const fs = require('fs');
 const helpers = require('./helpers');
 
 const PANTHEON_KEY_PRIVATE = process.env.PANTHEON_KEY_PRIVATE;
@@ -19,6 +22,13 @@ const SIGNATURE_NAME = 'Chisel Bot';
 const SIGNATURE_EMAIL = 'jakub.bogucki+chisel-bot@xfive.co';
 const MESSAGE_BUILD_PREFIX = '[chisel-build]';
 const MESSAGE_FORCE_INCLUDES = '[chisel-force]';
+
+const PUSHBACK_CONFIG_PATH = 'private/scripts/chisel/pushback-config.json';
+const PUSHBACK_CONFIG = process.env.CHISEL_PUSHBACK_CONFIG || '';
+const ADD_FORCE_LIST = [
+  PUSHBACK_CONFIG_PATH,
+  'iambuild',
+];
 
 let repository = null;
 
@@ -152,10 +162,23 @@ async function magic() {
   await repo.checkoutBranch(PANTHEON_LOCAL);
 
   // TODO: do real build
-  require('fs').writeFileSync('./iambuild', Date.now().toString());
+  fs.writeFileSync('./iambuild', Date.now().toString());
+
+  if(PUSHBACK_CONFIG) {
+    let regeneratedJson = '';
+    try {
+      regeneratedJson = JSON.stringify(JSON.parse(PUSHBACK_CONFIG), null, 2);
+    } catch(e) {
+      console.log(`Pushback config is not valid JSON, ignoring!\n${e}`);
+    }
+    if(regeneratedJson) {
+      await mkdirp(path.dirname(PUSHBACK_CONFIG_PATH));
+      fs.writeFileSync(PUSHBACK_CONFIG_PATH, regeneratedJson);
+    }
+  }
 
   const repoIndex = await repo.refreshIndex();
-  await repoIndex.addAll(['iambuild'], Git.Index.ADD_OPTION.ADD_FORCE);
+  await repoIndex.addAll(ADD_FORCE_LIST, Git.Index.ADD_OPTION.ADD_FORCE);
   await repoIndex.write();
   const treeOid = await repoIndex.writeTree();
   const author = Git.Signature.now(SIGNATURE_NAME, SIGNATURE_EMAIL);

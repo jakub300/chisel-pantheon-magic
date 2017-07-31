@@ -13,7 +13,7 @@
 - `BASE_KEY_PRIVATE`
 
 ### Optional configuration variables
-- `?`
+- `CHISEL_PUSHBACK_CONFIG`
 
 ### Functional variables
 - `CHISEL_PUSHBACK`

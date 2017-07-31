@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/jakub300/chisel-pantheon-magic#readme",
   "dependencies": {
+    "mkdirp-promise": "^5.0.1",
     "node-forge": "^0.7.1",
     "nodegit": "^0.18.3"
   }

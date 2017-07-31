@@ -83,6 +83,7 @@ async function push(repo, remoteName, remoteBranch, localBranch, privateKey, for
     }
   });
   console.log('done');
+  // @TODO: no error is thrown when push fails
   return res;
 }
 

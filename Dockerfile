@@ -12,9 +12,8 @@ RUN apt-get update && \
     php -r "unlink('composer-setup.php');" && \
     curl -O https://raw.githubusercontent.com/pantheon-systems/terminus-installer/master/builds/installer.phar && \
     php installer.phar install && \
-    php composer.phar clear-cache
-#    terminus -V
-# Terminus run temporarily disabled https://github.com/pantheon-systems/terminus/issues/1739
+    php composer.phar clear-cache && \
+    terminus -V
 
 
 WORKDIR /root

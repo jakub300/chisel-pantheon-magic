@@ -4,7 +4,6 @@ const Git = require('nodegit');
 const path = require('path');
 const mkdirp = require('mkdirp-promise');
 const fs = require('fs');
-const tmp = require('tmp');
 const helpers = require('./helpers');
 
 const PANTHEON_KEY_PRIVATE = process.env.PANTHEON_KEY_PRIVATE;
@@ -34,7 +33,6 @@ const ADD_FORCE_LIST = [
 let repository = null;
 
 async function main() {
-  tmp.setGracefulCleanup();
   const repo = await getRepository();
   await repo.checkoutBranch(LOCAL_BRANCH, {
     checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
@@ -85,13 +83,9 @@ async function removeBuildsFromPantheon(repo, commit, stopId) {
 }
 
 async function push(repo, remoteName, remoteBranch, localBranch, privateKey, force) {
-  process.stdout.write(`Pushing to ${remoteName}/${remoteBranch}... `);
-  const tmpFile = tmp.fileSync({discardDescriptor: true});
-  console.log('Temp cert file: ' + tmpFile.name); // TODO: remove
-  fs.writeFileSync(tmpFile.name, privateKey);
-  helpers.exec(`GIT_SSH_COMMAND='ssh -i ${tmpFile.name}' git push ${remoteName} ${force ? '+' : ''}refs/heads/${localBranch}:refs/heads/${remoteBranch}`);
-  tmpFile.removeCallback();
-  console.log('done');
+  console.log(`Pushing to ${remoteName}/${remoteBranch}... `);
+  helpers.execGitWithKey(privateKey, `push ${remoteName} ${force ? '+' : ''}refs/heads/${localBranch}:refs/heads/${remoteBranch}`);
+  console.log('Pushed!');
 }
 
 async function pushToPantheon(repo) {
@@ -103,11 +97,7 @@ async function pushToBase(repo) {
 }
 
 async function fetch(repo, remoteName, privateKey) {
-  const tmpFile = tmp.fileSync({discardDescriptor: true});
-  console.log('Temp cert file: ' + tmpFile.name); // TODO: remove
-  fs.writeFileSync(tmpFile.name, privateKey);
-  helpers.exec(`GIT_SSH_COMMAND='ssh -i ${tmpFile.name}' git fetch ${remoteName}`);
-  tmpFile.removeCallback();
+  helpers.execGitWithKey(privateKey, `fetch ${remoteName}`);
 }
 
 async function fetchAll(repo) {

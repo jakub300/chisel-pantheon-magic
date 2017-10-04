@@ -1,7 +1,7 @@
-FROM node:8
+FROM node:8-stretch
 
 RUN apt-get update && \
-    apt-get install -y php5-cli && \
+    apt-get install -y php-cli php-zip php-curl php-xml && \
     rm -rf /var/lib/apt/lists/* && \
     php -v && \
     cd ~/ && \

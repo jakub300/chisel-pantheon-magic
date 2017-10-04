@@ -17,7 +17,7 @@ exports.execGitWithKey = function(key, cmd) {
   const tmpFile = tmp.fileSync({discardDescriptor: true});
   console.log('Temp private key: ' + tmpFile.name); // TODO: remove
   fs.writeFileSync(tmpFile.name, key);
-  const res = exports.exec(`GIT_SSH_COMMAND='ssh -i ${tmpFile.name} -o StrictHostKeyChecking=no' git ${cmd}`);
+  const res = exports.exec(`GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${tmpFile.name}' git ${cmd}`);
   tmpFile.removeCallback();
   return res;
 }

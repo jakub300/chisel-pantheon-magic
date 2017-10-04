@@ -34,14 +34,13 @@ let repository = null;
 
 async function main() {
   const repo = await getRepository();
-  await repo.checkoutBranch(LOCAL_BRANCH, {
-    checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
-  });
-  await fetchAll(repo);
-  await repo.createBranch(PANTHEON_LOCAL, await repository.getBranchCommit(PANTHEON_REMOTE), true);
-  await Git.Reset.reset(repo, await repository.getBranchCommit(BASE_REMOTE), Git.Reset.TYPE.HARD);
-
   try {
+    await repo.checkoutBranch(LOCAL_BRANCH, {
+      checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
+    });
+    await fetchAll(repo);
+    await repo.createBranch(PANTHEON_LOCAL, await repository.getBranchCommit(PANTHEON_REMOTE), true);
+    await Git.Reset.reset(repo, await repository.getBranchCommit(BASE_REMOTE), Git.Reset.TYPE.HARD);
     await magic();
   } finally {
     await repo.checkoutBranch(LOCAL_BRANCH, {

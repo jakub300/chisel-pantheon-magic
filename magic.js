@@ -22,6 +22,7 @@ const SIGNATURE_NAME = 'Chisel Bot';
 const SIGNATURE_EMAIL = 'jakub.bogucki+chisel-bot@xfive.co';
 const MESSAGE_BUILD_PREFIX = '[chisel-build]';
 const MESSAGE_FORCE_INCLUDES = '[chisel-force]';
+const CHISEL_DEPLOY_COMMIT = process.env.CHISEL_DEPLOY_COMMIT || '';
 
 const PUSHBACK_CONFIG_PATH = 'private/scripts/chisel/pushback-config.json';
 const PUSHBACK_CONFIG = process.env.CHISEL_PUSHBACK_CONFIG || '';
@@ -114,6 +115,10 @@ async function magic() {
 
   console.log(`Our branch (${LOCAL_BRANCH}) is currenrly at commit: ${headCommit.id()}`);
   console.log(`Pantheon branch (${PANTHEON_REMOTE}) is currently at commit: ${branchCommit.id()}`);
+
+  if(CHISEL_DEPLOY_COMMIT && CHISEL_DEPLOY_COMMIT != headCommit.id()) {
+    throw new Error(`First commit for the branch ${BASE_REMOTE_BRANCH} does not match the commit we want to deploy (${CHISEL_DEPLOY_COMMIT}).`);
+  }
 
   const headMessage = headCommit.message();
   if(headMessage.includes(MESSAGE_FORCE_INCLUDES)) {

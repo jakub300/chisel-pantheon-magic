@@ -96,7 +96,7 @@ async function pushToBase(repo) {
 }
 
 async function fetch(repo, remoteName, privateKey) {
-  helpers.execGitWithKey(privateKey, `fetch ${remoteName}`);
+  helpers.execGitWithKey(privateKey, `fetch --no-tags ${remoteName}`);
 }
 
 async function fetchAll(repo) {

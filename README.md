@@ -13,7 +13,8 @@
 - `CHISEL_BASE_KEY_PRIVATE`
 
 ### Optional configuration variables
+- `CHISEL_BASE_REMOTE_BRANCH`
+- `CHISEL_PANTHEON_REMOTE_BRANCH`
 - `CHISEL_PUSHBACK_CONFIG`
 
 ### Functional variables
-- `CHISEL_PUSHBACK`

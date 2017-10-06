@@ -8,15 +8,15 @@ const helpers = require('./helpers');
 
 const PANTHEON_KEY_PRIVATE = process.env.PANTHEON_KEY_PRIVATE;
 const PANTHEON_REMOTE_NAME = 'pantheon';
-const PANTHEON_REMOTE_BRANCH = 'master';
+const PANTHEON_REMOTE_BRANCH = process.env.PANTHEON_REMOTE_BRANCH || 'master';
 const PANTHEON_REMOTE = `${PANTHEON_REMOTE_NAME}/${PANTHEON_REMOTE_BRANCH}`
 
 const BASE_KEY_PRIVATE = process.env.BASE_KEY_PRIVATE;
 const BASE_REMOTE_NAME = 'base';
-const BASE_REMOTE_BRANCH = 'master';
+const BASE_REMOTE_BRANCH = process.env.BASE_REMOTE_BRANCH || 'master';
 const BASE_REMOTE = `${BASE_REMOTE_NAME}/${BASE_REMOTE_BRANCH}`
 
-const PANTHEON_LOCAL = `pantheon-master-`+Date.now();
+const PANTHEON_LOCAL = `pantheon-local-`+Date.now();
 const LOCAL_BRANCH = 'master';
 const SIGNATURE_NAME = 'Chisel Bot';
 const SIGNATURE_EMAIL = 'jakub.bogucki+chisel-bot@xfive.co';

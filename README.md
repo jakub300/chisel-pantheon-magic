@@ -9,8 +9,8 @@
 ## Configuration
 ### Environment variables
 #### Mandatory configuration variables
-- `PANTHEON_KEY_PRIVATE`
-- `BASE_KEY_PRIVATE`
+- `CHISEL_PANTHEON_KEY_PRIVATE`
+- `CHISEL_BASE_KEY_PRIVATE`
 
 ### Optional configuration variables
 - `CHISEL_PUSHBACK_CONFIG`

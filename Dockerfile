@@ -21,6 +21,7 @@ WORKDIR /root
 COPY . /root/chisel-pantheon-magic
 
 RUN cd /root/chisel-pantheon-magic && \
-    npm link
+    npm link && \
+    npm cache clean --force
 
 WORKDIR /

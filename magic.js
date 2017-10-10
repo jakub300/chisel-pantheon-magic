@@ -149,6 +149,8 @@ async function magic() {
     const commitsToAdd = await findCommitsBetween(repo, branchCommit, base);
     commitsToAdd.reverse();
     console.log(`Attempting to move ${commitsToAdd.length} commit${commitsToAdd.length > 1 ? 's' : ''} to us`);
+    console.log(`Printing git status to verify that there is no files that may cause problems during move:`);
+    helpers.exec('git status');
     await moveRemoteCommitsToBase(repo, commitsToAdd);
     console.log('Moved successfuly');
     await pushToBase(repo);

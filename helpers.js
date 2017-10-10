@@ -37,3 +37,8 @@ exports.printConflicts = function(index) {
 
   console.log(`Conflicts:\n${conflicts.join('\n')}`);
 }
+
+
+exports.getPackageJSON = function() {
+  return JSON.parse(fs.readFileSync('./package.json'));
+}

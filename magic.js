@@ -24,11 +24,18 @@ const MESSAGE_BUILD_PREFIX = '[chisel-build]';
 const MESSAGE_FORCE_INCLUDES = '[chisel-force]';
 const CHISEL_DEPLOY_COMMIT = process.env.CHISEL_DEPLOY_COMMIT || '';
 
-const PUSHBACK_CONFIG_PATH = 'private/scripts/chisel/pushback-config.json';
+const PUSHBACK_CONFIG_PATH = 'web/private/scripts/chisel/pushback-config.json';
 const PUSHBACK_CONFIG = process.env.CHISEL_PUSHBACK_CONFIG || '';
+const PACKAGE_JSON = helpers.getPackageJSON();
+const HAS_YARN = fs.existsSync('./yarn.lock');
 const ADD_FORCE_LIST = [
   PUSHBACK_CONFIG_PATH,
-  'iambuild',
+  path.join(
+    PACKAGE_JSON.chisel.dest.wordpress,
+    'wp-content/themes',
+    PACKAGE_JSON.chisel.dest.wordpressTheme,
+    PACKAGE_JSON.chisel.dest.base
+  ),
 ];
 
 let repository = null;
@@ -152,8 +159,8 @@ async function magic() {
   await repo.createBranch(PANTHEON_LOCAL, headCommit, true);
   await repo.checkoutBranch(PANTHEON_LOCAL);
 
-  // TODO: do real build
-  fs.writeFileSync('./iambuild', Date.now().toString());
+  helpers.exec(HAS_YARN ? 'yarn install --pure-lockfile' : 'npm install --no-package-lock');
+  helpers.exec(HAS_YARN ? 'yarn build' : 'npm run build');
 
   if(PUSHBACK_CONFIG) {
     let regeneratedJson = '';

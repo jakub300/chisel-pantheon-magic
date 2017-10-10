@@ -175,9 +175,11 @@ async function magic() {
     }
   }
 
+  // TODO: shell-escape
+  ADD_FORCE_LIST.forEach(path => helpers.exec(`git add -vf '${path}' || (exit 0)`));
   const repoIndex = await repo.refreshIndex();
-  await repoIndex.addAll(ADD_FORCE_LIST, Git.Index.ADD_OPTION.ADD_FORCE);
-  await repoIndex.write();
+  // await repoIndex.addAll(ADD_FORCE_LIST, Git.Index.ADD_OPTION.ADD_FORCE);
+  // await repoIndex.write();
   const treeOid = await repoIndex.writeTree();
   const author = Git.Signature.now(SIGNATURE_NAME, SIGNATURE_EMAIL);
   const newCommitId = await repo.createCommit(

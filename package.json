@@ -12,7 +12,9 @@
   "author": "Jakub Bogucki <jakub.bogucki@xfive.co>",
   "license": "MIT",
   "bin": {
-    "chisel-pantheon-magic": "./magic.js"
+    "chisel-pantheon-magic": "./magic.js",
+    "chisel-pantheon-multidev-create": "./multidev-create.sh",
+    "chisel-pantheon-multidev-destroy": "./multidev-destroy.sh"
   },
   "bugs": {
     "url": "https://github.com/jakub300/chisel-pantheon-magic/issues"

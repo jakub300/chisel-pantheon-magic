@@ -26,10 +26,33 @@ const CHISEL_DEPLOY_COMMIT = process.env.CHISEL_DEPLOY_COMMIT || '';
 
 const PUSHBACK_CONFIG_PATH = 'web/private/scripts/chisel/pushback-config.json';
 const PUSHBACK_CONFIG = process.env.CHISEL_PUSHBACK_CONFIG || '';
+
+const CHISEL_CI_BUILD_DETAILS = process.env.CHISEL_CI_BUILD_DETAILS || '';
+const BUILD_DETAILS_PATH = 'BUILD-DETAILS';
+const BUILD_DETAILS = `This file contains information about the automatic build and deployment to Pantheon.
+
+If you see conflict in this file that means that something went wrong or you
+are trying to do something you shouldn't. This file should appear only in Panthen
+repositiry, never in your base repository. You should not use Pantheon's merge
+feature to for example merge your Multidev environment into Dev (master).
+
+Build started: ${new Date().toISOString()}
+Source: ${BASE_REMOTE}
+Destination: ${PANTHEON_REMOTE}
+Local Pantheon Branch: ${PANTHEON_LOCAL}
+Deploy Commit: ${CHISEL_DEPLOY_COMMIT ? CHISEL_DEPLOY_COMMIT : 'not provided'}
+${CHISEL_CI_BUILD_DETAILS
+  ? `
+Here is additinal information provided by your CI:
+${CHISEL_CI_BUILD_DETAILS}
+`
+  : ``}`;
+
 const PACKAGE_JSON = helpers.getPackageJSON();
 const HAS_YARN = fs.existsSync('./yarn.lock');
 const ADD_FORCE_LIST = [
   PUSHBACK_CONFIG_PATH,
+  BUILD_DETAILS_PATH,
   path.join(
     PACKAGE_JSON.chisel.dest.wordpress,
     'wp-content/themes',
@@ -176,6 +199,9 @@ async function magic() {
       fs.writeFileSync(PUSHBACK_CONFIG_PATH, regeneratedJson);
     }
   }
+
+  await mkdirp(path.dirname(BUILD_DETAILS_PATH));
+  fs.writeFileSync(BUILD_DETAILS_PATH, BUILD_DETAILS);
 
   // TODO: shell-escape
   ADD_FORCE_LIST.forEach(path => helpers.exec(`git add -vf '${path}' || (exit 0)`));

@@ -265,6 +265,7 @@ async function moveRemoteCommitsToBase(repo, commitsToAdd) {
       }
       // console.log('Picking: '+parents[0].sha());
       const head = await repo.getHeadCommit();
+      await Git.Reset.reset(repo, head, Git.Reset.TYPE.HARD);
       await Git.Cherrypick.cherrypick(repo, commit, {});
       const index = await repo.refreshIndex();
       if(index.hasConflicts()) {
@@ -280,7 +281,6 @@ async function moveRemoteCommitsToBase(repo, commitsToAdd) {
         treeOid,
         [head],
       );
-      helpers.exec(`git show --stat HEAD`);
     } else if(parents.length == 2) {
       // Merge commit
       const head = await repo.getHeadCommit();
@@ -299,11 +299,11 @@ async function moveRemoteCommitsToBase(repo, commitsToAdd) {
         treeOid,
         [head, parents[1]],
       );
-      await Git.Reset.reset(repo, await repo.getHeadCommit(), Git.Reset.TYPE.HARD);
-      helpers.exec(`git show --stat HEAD`);
     } else {
       throw new Error('Merge commits of more than two things are not supported');
     }
+    await Git.Reset.reset(repo, await repo.getHeadCommit(), Git.Reset.TYPE.HARD);
+    helpers.exec(`git show --stat HEAD`);
   }
 }
 

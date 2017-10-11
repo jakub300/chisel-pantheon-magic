@@ -17,6 +17,7 @@ const BASE_REMOTE_BRANCH = process.env.CHISEL_BASE_REMOTE_BRANCH || 'master';
 const BASE_REMOTE = `${BASE_REMOTE_NAME}/${BASE_REMOTE_BRANCH}`
 
 const PANTHEON_LOCAL = `pantheon-local-`+Date.now();
+const BASE_LOCAL = `base-local-`+Date.now();
 const LOCAL_BRANCH = 'master';
 const SIGNATURE_NAME = 'Chisel Bot';
 const SIGNATURE_EMAIL = 'jakub.bogucki+chisel-bot@xfive.co';
@@ -39,7 +40,8 @@ feature to for example merge your Multidev environment into Dev (master).
 Build started: ${new Date().toISOString()}
 Source: ${BASE_REMOTE}
 Destination: ${PANTHEON_REMOTE}
-Local Pantheon Branch: ${PANTHEON_LOCAL}
+Local Pantheon Branch: ${BASE_LOCAL}
+Local Base Branch: ${PANTHEON_LOCAL}
 Deploy Commit: ${CHISEL_DEPLOY_COMMIT ? CHISEL_DEPLOY_COMMIT : 'not provided'}
 ${CHISEL_CI_BUILD_DETAILS
   ? `
@@ -66,19 +68,19 @@ let repository = null;
 async function main() {
   const repo = await getRepository();
   try {
-    await repo.checkoutBranch(LOCAL_BRANCH, {
-      checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
-    });
     await fetchAll(repo);
     await repo.createBranch(PANTHEON_LOCAL, await repository.getBranchCommit(PANTHEON_REMOTE), true);
-    await Git.Reset.reset(repo, await repository.getBranchCommit(BASE_REMOTE), Git.Reset.TYPE.HARD);
+    await repo.createBranch(BASE_LOCAL, await repository.getBranchCommit(BASE_REMOTE), true);
+    await repo.checkoutBranch(BASE_LOCAL, {
+      checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
+    });
     await magic();
   } finally {
     await repo.checkoutBranch(LOCAL_BRANCH, {
       checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
     });
-    await Git.Reset.reset(repo, await repository.getBranchCommit(BASE_REMOTE), Git.Reset.TYPE.HARD);
     await Git.Branch.delete(await repo.getBranch(PANTHEON_LOCAL));
+    await Git.Branch.delete(await repo.getBranch(BASE_LOCAL));
   }
 }
 
@@ -123,7 +125,7 @@ async function pushToPantheon(repo) {
 }
 
 async function pushToBase(repo) {
-  return push(repo, BASE_REMOTE_NAME, BASE_REMOTE_BRANCH, LOCAL_BRANCH, BASE_KEY_PRIVATE, false);
+  return push(repo, BASE_REMOTE_NAME, BASE_REMOTE_BRANCH, BASE_LOCAL, BASE_KEY_PRIVATE, false);
 }
 
 async function fetch(repo, remoteName, privateKey) {
@@ -144,7 +146,7 @@ async function magic() {
   let branchCommit = await repo.getBranchCommit(PANTHEON_LOCAL);
   let movedCommits = false;
 
-  console.log(`Our branch (${LOCAL_BRANCH}) is currenrly at commit: ${headCommit.id()}`);
+  console.log(`Our branch (${BASE_LOCAL}) is currenrly at commit: ${headCommit.id()}`);
   console.log(`Pantheon branch (${PANTHEON_REMOTE}) is currently at commit: ${branchCommit.id()}`);
 
   if(CHISEL_DEPLOY_COMMIT && CHISEL_DEPLOY_COMMIT != headCommit.id()) {
@@ -223,10 +225,6 @@ async function magic() {
   helpers.exec(`git show --stat HEAD`);
   await pushToPantheon(repo);
   if(movedCommits) {
-    await repo.createBranch(PANTHEON_LOCAL, headCommit, true);
-    await repo.checkoutBranch(PANTHEON_LOCAL, {
-      checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
-    });
     await pushToBase(repo);
   }
 }
@@ -265,7 +263,6 @@ async function moveRemoteCommitsToBase(repo, commitsToAdd) {
       }
       // console.log('Picking: '+parents[0].sha());
       const head = await repo.getHeadCommit();
-      await Git.Reset.reset(repo, head, Git.Reset.TYPE.HARD);
       await Git.Cherrypick.cherrypick(repo, commit, {});
       const index = await repo.refreshIndex();
       if(index.hasConflicts()) {
@@ -277,7 +274,8 @@ async function moveRemoteCommitsToBase(repo, commitsToAdd) {
         'HEAD',
         commit.author(),
         Git.Signature.now(SIGNATURE_NAME, SIGNATURE_EMAIL),
-        commit.message()+'\n[ci skip]',
+        commit.message() +
+          (commit.message().includes('[ci skip]') ? '' : '\n[ci skip]'),
         treeOid,
         [head],
       );
@@ -295,7 +293,8 @@ async function moveRemoteCommitsToBase(repo, commitsToAdd) {
         'HEAD',
         commit.author(),
         Git.Signature.now(SIGNATURE_NAME, SIGNATURE_EMAIL),
-        commit.message()+'\n[ci skip]',
+        commit.message() +
+          (commit.message().includes('[ci skip]') ? '' : '\n[ci skip]'),
         treeOid,
         [head, parents[1]],
       );

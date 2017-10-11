@@ -142,6 +142,7 @@ async function magic() {
 
   let headCommit = await repo.getHeadCommit();
   let branchCommit = await repo.getBranchCommit(PANTHEON_LOCAL);
+  let movedCommits = false;
 
   console.log(`Our branch (${LOCAL_BRANCH}) is currenrly at commit: ${headCommit.id()}`);
   console.log(`Pantheon branch (${PANTHEON_REMOTE}) is currently at commit: ${branchCommit.id()}`);
@@ -176,7 +177,7 @@ async function magic() {
     helpers.exec('git status');
     await moveRemoteCommitsToBase(repo, commitsToAdd);
     console.log('Moved successfuly');
-    await pushToBase(repo);
+    movedCommits = true;
     headCommit = await repo.getHeadCommit();
   }
 
@@ -221,6 +222,13 @@ async function magic() {
   console.log(`Builded project commited in ${newCommitId}`);
   helpers.exec(`git show --stat HEAD`);
   await pushToPantheon(repo);
+  if(movedCommits) {
+    await repo.createBranch(PANTHEON_LOCAL, headCommit, true);
+    await repo.checkoutBranch(PANTHEON_LOCAL, {
+      checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
+    });
+    await pushToBase(repo);
+  }
 }
 
 async function findCommitsBetween(repo, start, endId) {

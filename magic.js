@@ -203,6 +203,9 @@ async function magic() {
     }
   }
 
+  if(fs.existsSync(BUILD_DETAILS_PATH)) {
+    throw new Error('Build details file exists. You are probably overwriting exiting build, this is not allowed.');
+  }
   await mkdirp(path.dirname(BUILD_DETAILS_PATH));
   fs.writeFileSync(BUILD_DETAILS_PATH, BUILD_DETAILS);
 

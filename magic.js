@@ -213,7 +213,7 @@ async function magic() {
   console.log(`Our branch (${BASE_LOCAL}) is currenrly at commit: ${headCommit.id()}`);
   console.log(`Pantheon branch (${PANTHEON_REMOTE}) is currently at commit: ${branchCommit.id()}`);
 
-  if (CHISEL_DEPLOY_COMMIT && CHISEL_DEPLOY_COMMIT !== headCommit.id()) {
+  if (CHISEL_DEPLOY_COMMIT && CHISEL_DEPLOY_COMMIT !== headCommit.id().toString()) {
     throw new Error(
       `First commit for the branch ${BASE_REMOTE_BRANCH} does not match the commit we want to deploy (${
         CHISEL_DEPLOY_COMMIT

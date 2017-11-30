@@ -24,5 +24,10 @@
     "mkdirp-promise": "^5.0.1",
     "nodegit": "^0.18.3",
     "tmp": "0.0.33"
+  },
+  "devDependencies": {
+    "eslint": "^4.12.1",
+    "eslint-config-chisel": "^1.0.0",
+    "prettier": "^1.8.2"
   }
 }

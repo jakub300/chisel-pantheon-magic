@@ -9,15 +9,15 @@ const helpers = require('./helpers');
 const PANTHEON_KEY_PRIVATE = process.env.CHISEL_PANTHEON_KEY_PRIVATE;
 const PANTHEON_REMOTE_NAME = 'pantheon';
 const PANTHEON_REMOTE_BRANCH = process.env.CHISEL_PANTHEON_REMOTE_BRANCH || 'master';
-const PANTHEON_REMOTE = `${PANTHEON_REMOTE_NAME}/${PANTHEON_REMOTE_BRANCH}`
+const PANTHEON_REMOTE = `${PANTHEON_REMOTE_NAME}/${PANTHEON_REMOTE_BRANCH}`;
 
 const BASE_KEY_PRIVATE = process.env.CHISEL_BASE_KEY_PRIVATE;
 const BASE_REMOTE_NAME = 'base';
 const BASE_REMOTE_BRANCH = process.env.CHISEL_BASE_REMOTE_BRANCH || 'master';
-const BASE_REMOTE = `${BASE_REMOTE_NAME}/${BASE_REMOTE_BRANCH}`
+const BASE_REMOTE = `${BASE_REMOTE_NAME}/${BASE_REMOTE_BRANCH}`;
 
-const PANTHEON_LOCAL = `pantheon-local-`+Date.now();
-const BASE_LOCAL = `base-local-`+Date.now();
+const PANTHEON_LOCAL = `pantheon-local-${Date.now()}`;
+const BASE_LOCAL = `base-local-${Date.now()}`;
 const LOCAL_BRANCH = 'master';
 const SIGNATURE_NAME = 'Chisel Bot';
 const SIGNATURE_EMAIL = 'jakub.bogucki+chisel-bot@xfive.co';
@@ -42,13 +42,15 @@ Source: ${BASE_REMOTE}
 Destination: ${PANTHEON_REMOTE}
 Local Pantheon Branch: ${BASE_LOCAL}
 Local Base Branch: ${PANTHEON_LOCAL}
-Deploy Commit: ${CHISEL_DEPLOY_COMMIT ? CHISEL_DEPLOY_COMMIT : 'not provided'}
-${CHISEL_CI_BUILD_DETAILS
-  ? `
+Deploy Commit: ${CHISEL_DEPLOY_COMMIT || 'not provided'}
+${
+  CHISEL_CI_BUILD_DETAILS
+    ? `
 Here is additinal information provided by your CI:
 ${CHISEL_CI_BUILD_DETAILS}
 `
-  : ``}`;
+    : ``
+}`;
 
 const PACKAGE_JSON = helpers.getPackageJSON();
 const HAS_YARN = fs.existsSync('./yarn.lock');
@@ -65,27 +67,8 @@ const ADD_FORCE_LIST = [
 
 let repository = null;
 
-async function main() {
-  const repo = await getRepository();
-  try {
-    await fetchAll(repo);
-    await repo.createBranch(PANTHEON_LOCAL, await repository.getBranchCommit(PANTHEON_REMOTE), true);
-    await repo.createBranch(BASE_LOCAL, await repository.getBranchCommit(BASE_REMOTE), true);
-    await repo.checkoutBranch(BASE_LOCAL, {
-      checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
-    });
-    await magic();
-  } finally {
-    await repo.checkoutBranch(LOCAL_BRANCH, {
-      checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
-    });
-    await Git.Branch.delete(await repo.getBranch(PANTHEON_LOCAL));
-    await Git.Branch.delete(await repo.getBranch(BASE_LOCAL));
-  }
-}
-
 async function getRepository() {
-  if(repository == null) {
+  if (repository == null) {
     repository = await Git.Repository.open('.');
   }
   return repository;
@@ -93,30 +76,33 @@ async function getRepository() {
 
 async function removeBuildsFromPantheon(repo, commit, stopId) {
   let firstNonBuildCommit = null;
-  while(commit) {
+  while (commit) {
     const message = commit.message();
-    if(!message.startsWith(MESSAGE_BUILD_PREFIX)) {
+    if (!message.startsWith(MESSAGE_BUILD_PREFIX)) {
       console.log(`Pantheon first non build commit: ${commit.id()}`);
       firstNonBuildCommit = commit;
       break;
     }
 
-    if(stopId.equal(commit.id())) {
+    if (stopId.equal(commit.id())) {
       throw new Error('Reached stop commit');
     }
 
     const parents = await commit.getParents();
-    commit = parents[0];
+    [commit] = parents; // eslint-disable-line no-param-reassign
   }
 
-  if(firstNonBuildCommit) {
+  if (firstNonBuildCommit) {
     await repo.createBranch(PANTHEON_LOCAL, firstNonBuildCommit, true);
   }
 }
 
 async function push(repo, remoteName, remoteBranch, localBranch, privateKey, force) {
   console.log(`Pushing to ${remoteName}/${remoteBranch}... `);
-  helpers.execGitWithKey(privateKey, `push ${remoteName} ${force ? '+' : ''}refs/heads/${localBranch}:refs/heads/${remoteBranch}`);
+  helpers.execGitWithKey(
+    privateKey,
+    `push ${remoteName} ${force ? '+' : ''}refs/heads/${localBranch}:refs/heads/${remoteBranch}`
+  );
   console.log('Pushed!');
 }
 
@@ -139,6 +125,84 @@ async function fetchAll(repo) {
   console.log('done');
 }
 
+async function findCommitsBetween(repo, start, endId) {
+  const commits = [];
+  let check = start;
+  while (check) {
+    if (check.id().equal(endId)) {
+      break;
+    }
+    const parentsIds = check.parents();
+    const parents = [];
+    // eslint-disable-next-line no-restricted-syntax
+    for (const parentId of parentsIds) {
+      parents.push(await Git.Commit.lookup(repo, parentId));
+    }
+    // console.log(check.sha() + ' -> ' + parents.map(p => p.sha()).join(' '));
+    commits.push({
+      commit: check,
+      parents,
+    });
+
+    [check] = parents;
+  }
+  return commits;
+}
+
+async function moveRemoteCommitsToBase(repo, commitsToAdd) {
+  // eslint-disable-next-line no-restricted-syntax
+  for (const { commit, parents } of commitsToAdd) {
+    if (parents.length === 1) {
+      // Single commit - cherry pick
+      const message = commit.message();
+      if (message.startsWith(MESSAGE_BUILD_PREFIX)) {
+        // Skip commit that is build
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+      // console.log('Picking: '+parents[0].sha());
+      const head = await repo.getHeadCommit();
+      await Git.Cherrypick.cherrypick(repo, commit, {});
+      const index = await repo.refreshIndex();
+      if (index.hasConflicts()) {
+        helpers.printConflicts(index);
+        throw new Error(`Conflicts when cherrypicking ${commit.id()}`);
+      }
+      const treeOid = await index.writeTreeTo(repo);
+      await repo.createCommit(
+        'HEAD',
+        commit.author(),
+        Git.Signature.now(SIGNATURE_NAME, SIGNATURE_EMAIL),
+        commit.message() + (commit.message().includes('[ci skip]') ? '' : '\n[ci skip]'),
+        treeOid,
+        [head]
+      );
+    } else if (parents.length === 2) {
+      // Merge commit
+      const head = await repo.getHeadCommit();
+      console.log(`merging ${parents[1].id()} with ${head.id()}`);
+      const index = await Git.Merge.commits(repo, head, parents[1]);
+      if (index.hasConflicts()) {
+        helpers.printConflicts(index);
+        throw new Error(`Conflicts when merging ${parents[1].id()} with ${head.id()}`);
+      }
+      const treeOid = await index.writeTreeTo(repo);
+      await repo.createCommit(
+        'HEAD',
+        commit.author(),
+        Git.Signature.now(SIGNATURE_NAME, SIGNATURE_EMAIL),
+        commit.message() + (commit.message().includes('[ci skip]') ? '' : '\n[ci skip]'),
+        treeOid,
+        [head, parents[1]]
+      );
+    } else {
+      throw new Error('Merge commits of more than two things are not supported');
+    }
+    await Git.Reset.reset(repo, await repo.getHeadCommit(), Git.Reset.TYPE.HARD);
+    helpers.exec(`git show --stat HEAD`);
+  }
+}
+
 async function magic() {
   const repo = await getRepository();
 
@@ -149,12 +213,16 @@ async function magic() {
   console.log(`Our branch (${BASE_LOCAL}) is currenrly at commit: ${headCommit.id()}`);
   console.log(`Pantheon branch (${PANTHEON_REMOTE}) is currently at commit: ${branchCommit.id()}`);
 
-  if(CHISEL_DEPLOY_COMMIT && CHISEL_DEPLOY_COMMIT != headCommit.id()) {
-    throw new Error(`First commit for the branch ${BASE_REMOTE_BRANCH} does not match the commit we want to deploy (${CHISEL_DEPLOY_COMMIT}).`);
+  if (CHISEL_DEPLOY_COMMIT && CHISEL_DEPLOY_COMMIT !== headCommit.id()) {
+    throw new Error(
+      `First commit for the branch ${BASE_REMOTE_BRANCH} does not match the commit we want to deploy (${
+        CHISEL_DEPLOY_COMMIT
+      }).`
+    );
   }
 
   const headMessage = headCommit.message();
-  if(headMessage.includes(MESSAGE_FORCE_INCLUDES)) {
+  if (headMessage.includes(MESSAGE_FORCE_INCLUDES)) {
     console.log(`Head commit has ${MESSAGE_FORCE_INCLUDES} in message, reseting Pantheon`);
     await repo.createBranch(PANTHEON_LOCAL, headCommit, true);
     branchCommit = await repo.getBranchCommit(PANTHEON_LOCAL);
@@ -170,7 +238,7 @@ async function magic() {
   console.log('Checking if all commits on Pantheon on top of join are builds');
   await removeBuildsFromPantheon(repo, branchCommit, base);
   branchCommit = await repo.getBranchCommit(PANTHEON_LOCAL);
-  if(!base.equal(branchCommit.id())) {
+  if (!base.equal(branchCommit.id())) {
     console.log('Found commits that are not builds');
     const commitsToAdd = await findCommitsBetween(repo, branchCommit, base);
     commitsToAdd.reverse();
@@ -190,127 +258,63 @@ async function magic() {
   helpers.exec(HAS_YARN ? 'yarn install --frozen-lockfile' : 'npm install --quiet --no-package-lock');
   helpers.exec(HAS_YARN ? 'yarn build' : 'npm run build');
 
-  if(PUSHBACK_CONFIG) {
+  if (PUSHBACK_CONFIG) {
     let regeneratedJson = '';
     try {
       regeneratedJson = JSON.stringify(JSON.parse(PUSHBACK_CONFIG), null, 2);
-    } catch(e) {
+    } catch (e) {
       console.log(`Pushback config is not valid JSON, ignoring!\n${e}`);
     }
-    if(regeneratedJson) {
+    if (regeneratedJson) {
       await mkdirp(path.dirname(PUSHBACK_CONFIG_PATH));
       fs.writeFileSync(PUSHBACK_CONFIG_PATH, regeneratedJson);
     }
   }
 
-  if(fs.existsSync(BUILD_DETAILS_PATH)) {
+  if (fs.existsSync(BUILD_DETAILS_PATH)) {
     throw new Error('Build details file exists. You are probably overwriting exiting build, this is not allowed.');
   }
   await mkdirp(path.dirname(BUILD_DETAILS_PATH));
   fs.writeFileSync(BUILD_DETAILS_PATH, BUILD_DETAILS);
 
   // TODO: shell-escape
-  ADD_FORCE_LIST.forEach(path => helpers.exec(`git add -vf '${path}' || (exit 0)`));
+  ADD_FORCE_LIST.forEach(addPath => helpers.exec(`git add -vf '${addPath}' || (exit 0)`));
   const repoIndex = await repo.refreshIndex();
   // await repoIndex.addAll(ADD_FORCE_LIST, Git.Index.ADD_OPTION.ADD_FORCE);
   // await repoIndex.write();
   const treeOid = await repoIndex.writeTree();
   const author = Git.Signature.now(SIGNATURE_NAME, SIGNATURE_EMAIL);
-  const newCommitId = await repo.createCommit(
-    'HEAD',
-    author,
-    author,
-    `${MESSAGE_BUILD_PREFIX} Builded!`,
-    treeOid,
-    [headCommit],
-  );
+  const newCommitId = await repo.createCommit('HEAD', author, author, `${MESSAGE_BUILD_PREFIX} Builded!`, treeOid, [
+    headCommit,
+  ]);
   console.log(`Builded project commited in ${newCommitId}`);
   helpers.exec(`git show --stat HEAD`);
   await pushToPantheon(repo);
-  if(movedCommits) {
+  if (movedCommits) {
     await pushToBase(repo);
   }
 }
 
-async function findCommitsBetween(repo, start, endId) {
-  const commits = [];
-  let check = start;
-  while(check) {
-    if(check.id().equal(endId)) {
-      break;
-    }
-    const parentsIds = check.parents();
-    const parents = [];
-    for(const parentId of parentsIds) {
-      parents.push(await Git.Commit.lookup(repo, parentId));
-    }
-    // console.log(check.sha() + ' -> ' + parents.map(p => p.sha()).join(' '));
-    commits.push({
-      commit: check,
-      parents,
+async function main() {
+  const repo = await getRepository();
+  try {
+    await fetchAll(repo);
+    await repo.createBranch(PANTHEON_LOCAL, await repository.getBranchCommit(PANTHEON_REMOTE), true);
+    await repo.createBranch(BASE_LOCAL, await repository.getBranchCommit(BASE_REMOTE), true);
+    await repo.checkoutBranch(BASE_LOCAL, {
+      checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
     });
-
-    check = parents[0];
-  }
-  return commits;
-}
-
-async function moveRemoteCommitsToBase(repo, commitsToAdd) {
-  for(const { commit, parents } of commitsToAdd) {
-    if(parents.length == 1) {
-      // Single commit - cherry pick
-      const message = commit.message();
-      if(message.startsWith(MESSAGE_BUILD_PREFIX)) {
-        // Skip commit that is build
-        continue;
-      }
-      // console.log('Picking: '+parents[0].sha());
-      const head = await repo.getHeadCommit();
-      await Git.Cherrypick.cherrypick(repo, commit, {});
-      const index = await repo.refreshIndex();
-      if(index.hasConflicts()) {
-        helpers.printConflicts(index);
-        throw new Error(`Conflicts when cherrypicking ${commit.id()}`);
-      }
-      const treeOid = await index.writeTreeTo(repo);
-      await repo.createCommit(
-        'HEAD',
-        commit.author(),
-        Git.Signature.now(SIGNATURE_NAME, SIGNATURE_EMAIL),
-        commit.message() +
-          (commit.message().includes('[ci skip]') ? '' : '\n[ci skip]'),
-        treeOid,
-        [head],
-      );
-    } else if(parents.length == 2) {
-      // Merge commit
-      const head = await repo.getHeadCommit();
-      console.log(`merging ${parents[1].id()} with ${head.id()}`);
-      const index = await Git.Merge.commits(repo, head, parents[1]);
-      if(index.hasConflicts()) {
-        helpers.printConflicts(index);
-        throw new Error(`Conflicts when merging ${parents[1].id()} with ${head.id()}`);
-      }
-      const treeOid = await index.writeTreeTo(repo);
-      await repo.createCommit(
-        'HEAD',
-        commit.author(),
-        Git.Signature.now(SIGNATURE_NAME, SIGNATURE_EMAIL),
-        commit.message() +
-          (commit.message().includes('[ci skip]') ? '' : '\n[ci skip]'),
-        treeOid,
-        [head, parents[1]],
-      );
-    } else {
-      throw new Error('Merge commits of more than two things are not supported');
-    }
-    await Git.Reset.reset(repo, await repo.getHeadCommit(), Git.Reset.TYPE.HARD);
-    helpers.exec(`git show --stat HEAD`);
+    await magic();
+  } finally {
+    await repo.checkoutBranch(LOCAL_BRANCH, {
+      checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
+    });
+    await Git.Branch.delete(await repo.getBranch(PANTHEON_LOCAL));
+    await Git.Branch.delete(await repo.getBranch(BASE_LOCAL));
   }
 }
 
-main().
-  catch(e => {
-    console.log(e);
-    process.exit(1);
-  });
+main().catch(e => {
+  console.log(e);
+  process.exit(1);
+});

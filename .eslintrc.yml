@@ -1,0 +1,4 @@
+extends: chisel
+rules:
+  no-await-in-loop: off
+  no-console: off

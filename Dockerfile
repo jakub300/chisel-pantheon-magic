@@ -1,6 +1,7 @@
 FROM node:8-stretch
 
-RUN apt-get update && \
+RUN npm config set unsafe-perm true -g && \
+    apt-get update && \
     apt-get install -y php-cli php-zip php-curl php-xml && \
     rm -rf /var/lib/apt/lists/* && \
     php -v && \

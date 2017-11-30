@@ -187,7 +187,7 @@ async function magic() {
   await repo.createBranch(PANTHEON_LOCAL, headCommit, true);
   await repo.checkoutBranch(PANTHEON_LOCAL);
 
-  helpers.exec(HAS_YARN ? 'yarn install --frozen-lockfile' : 'npm install --no-package-lock');
+  helpers.exec(HAS_YARN ? 'yarn install --frozen-lockfile' : 'npm install --quiet --no-package-lock');
   helpers.exec(HAS_YARN ? 'yarn build' : 'npm run build');
 
   if(PUSHBACK_CONFIG) {
